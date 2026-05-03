@@ -184,7 +184,7 @@ El presente repositorio está disponible bajo la **Licencia MIT**. Siéntete lib
 
 ---
 <div align="center">
-  <p><b>Desarrollado con Claude Code y Skills de Inteligencia Artificial</b></p>
+  <p><b>Desarrollado por Danny Gonzalez · Analyst & Data Scientist</b></p>
   <img src="https://img.shields.io/badge/Generative_AI-Enabled-000000?style=for-the-badge&logo=openai" alt="Generative AI">
   <img src="https://img.shields.io/badge/Data_Science-Powered-0052CC?style=for-the-badge&logo=jupyter" alt="Data Science">
   <img src="https://img.shields.io/badge/Streamlit_App-Deployed-FF4B4B?style=for-the-badge&logo=streamlit" alt="Streamlit">
