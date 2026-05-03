@@ -1,9 +1,11 @@
 # Ignore data files
 /data/raw/
-/data/processed/
+# Permitimos el dataset de inferencia para Streamlit
+!/data/processed/inferencia_df_transformado.csv
 
 # Ignore model files
-/models/
+# Permitimos el modelo final para Streamlit
+!/models/modelo_final.joblib
 
 # Ignore Streamlit cache
 app/.streamlit/
