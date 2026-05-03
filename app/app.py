@@ -212,48 +212,84 @@ def fmt_eur(v):  return f"{v:,.2f} €".replace(",", "X").replace(".", ",").repl
 def fmt_pct(v):  return f"{v:.1f}%"
 
 # ---------------------------------------------------------------------------
-# Predicción recursiva
+# Predicción recursiva  (versión corregida)
 # ---------------------------------------------------------------------------
 def predict_recursive(df_product, model, descuento_delta, comp_factor):
+    """
+    descuento_delta : descuento ABSOLUTO en % sobre precio_base que quiere el usuario
+                      (0 = sin descuento, 10 = 10% de descuento, -10 = subida de precio 10%).
+                      Se aplica DIRECTAMENTE sobre precio_base, no se acumula con el CSV.
+    comp_factor     : factor multiplicativo sobre precio_competencia (1.0 / 0.95 / 1.05).
+    """
     feature_cols = model.feature_names_in_.tolist()
     df = df_product.copy().sort_values("fecha").reset_index(drop=True)
-    predictions = []
+    predictions  = []
+
+    # ── Pre-inicializar rolling_mean_7 del día 1 desde los lags disponibles ──
+    # El CSV tiene rolling_mean_7 = NaN en todos los días; la inicializamos
+    # con el promedio de los lags que sí están disponibles en la fila 0.
+    lags_dia1 = []
+    for k in range(1, 8):
+        v = df.loc[0, f"lag_{k}"]
+        if pd.notna(v):
+            lags_dia1.append(float(v))
+    ma7_inicial = float(np.mean(lags_dia1)) if lags_dia1 else 0.0
+    df.loc[0, MA_COL] = ma7_inicial
+
+    # ── Rellenar NaN en lags iniciales: lag_k NaN → usar lag_{k-1} ──────────
+    # Solo para el día 0; a partir del día 1 los actualiza el loop recursivo.
+    ref = df.loc[0, "lag_1"] if pd.notna(df.loc[0, "lag_1"]) else 0.0
+    for k in range(1, 8):
+        if pd.isna(df.loc[0, f"lag_{k}"]):
+            df.loc[0, f"lag_{k}"] = ref
 
     for i in range(len(df)):
         row = df.loc[i].copy()
 
-        # Ajustar precio_venta
-        precio_base   = float(row["precio_base"])
-        desc_original = float(row.get("descuento_porcentaje", 0.0))
-        desc_nuevo    = float(np.clip(desc_original + descuento_delta, 0, 100))
-        precio_venta_sim = precio_base * (1.0 - desc_nuevo / 100.0)
-        row["precio_venta"]         = precio_venta_sim
-        row["descuento_porcentaje"] = desc_nuevo
+        # ── 1. Precio de venta según descuento del slider ──────────────────
+        #    descuento_delta es el % que quiere el usuario aplicar sobre precio_base.
+        #    Rango slider: -50 (subida de precio 50%) … +50 (descuento del 50%).
+        precio_base      = float(row["precio_base"])
+        desc_usuario     = float(np.clip(descuento_delta, -50, 50))   # % solicitado
+        precio_venta_sim = precio_base * (1.0 - desc_usuario / 100.0)
+        precio_venta_sim = max(precio_venta_sim, 0.01)                 # nunca negativo
 
-        # Ajustar precio_competencia
+        # Guardamos en la columna de features el valor en la escala real del CSV
+        # (el modelo fue entrenado con esa columna)
+        row["precio_venta"]         = precio_venta_sim
+        row["descuento_porcentaje"] = desc_usuario   # usamos la escala del slider
+
+        # ── 2. Precio competencia ajustado ────────────────────────────────
         precio_comp_sim           = float(row["precio_competencia"]) * comp_factor
         row["precio_competencia"] = precio_comp_sim
         row["ratio_precio"]       = (precio_venta_sim / precio_comp_sim) if precio_comp_sim > 0 else 1.0
 
-        # Actualizar lags recursivamente (a partir del día 2)
+        # ── 3. Actualizar lags recursivamente (días 2-30) ─────────────────
         if i > 0:
+            # Desplazar: lag_7←lag_6, …, lag_2←lag_1, lag_1←predicción anterior
             for k in range(7, 1, -1):
                 row[f"lag_{k}"] = df.loc[i - 1, f"lag_{k - 1}"]
             row["lag_1"] = predictions[-1]
+            # Actualizar rolling_mean_7 con las últimas 7 predicciones disponibles
             ventana = predictions[-7:]
             row[MA_COL] = float(np.mean(ventana))
 
-        # Predecir
+        # ── 4. Garantizar que no queden NaN en features ───────────────────
+        for col in feature_cols:
+            if pd.isna(row[col]):
+                row[col] = 0.0
+
+        # ── 5. Predecir ───────────────────────────────────────────────────
         X    = pd.DataFrame([row[feature_cols].values], columns=feature_cols)
         pred = max(float(model.predict(X)[0]), 0.0)
         predictions.append(pred)
 
-        # Persistir en df para la siguiente iteración
+        # ── 6. Persistir en df para la siguiente iteración ────────────────
         df.loc[i, "lag_1"]                = row["lag_1"]
         df.loc[i, MA_COL]                 = row[MA_COL]
         df.loc[i, "precio_venta"]         = precio_venta_sim
         df.loc[i, "precio_competencia"]   = precio_comp_sim
-        df.loc[i, "descuento_porcentaje"] = desc_nuevo
+        df.loc[i, "descuento_porcentaje"] = desc_usuario
         df.loc[i, "ratio_precio"]         = row["ratio_precio"]
 
     df["prediccion"]       = [round(p) for p in predictions]
@@ -341,10 +377,11 @@ with st.sidebar:
     st.markdown("---")
 
     descuento_delta = st.slider(
-        "📉 Ajuste de descuento (pp)",
+        "📉 Descuento sobre precio base (%)",
         min_value=-50, max_value=50, value=0, step=5,
         format="%d%%",
         key="descuento_delta",
+        help="0% = precio base sin cambio | +10% = 10% de descuento | -10% = 10% de incremento de precio",
     )
 
     st.markdown("---")
