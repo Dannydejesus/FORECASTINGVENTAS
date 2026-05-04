@@ -144,8 +144,8 @@ jupyter notebook notebooks/forecasting.ipynb
 
 El repositorio incluye un dashboard avanzado, diseñado con *glassmorphism* y pautas modernas de usabilidad, que funciona como motor de toma de decisiones comerciales.
 
-![Streamlit Dashboard Demo](https://raw.githubusercontent.com/Dannydejesus/FORECASTINGVENTAS/main/docs/graficos/app_screenshot.png)
-*(Placeholder: Captura de pantalla del dashboard en modo simulación)*
+[![App Streamlit Live](https://img.shields.io/badge/🔮_Abrir_Simulador_Streamlit_en_Vivo-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://fyulvw33jzgt9v9qqmezhq.streamlit.app/)
+*(👆 Haz clic en el botón para abrir y probar la aplicación en vivo)*
 
 **Funcionalidades Clave:**
 *   🛒 **Selector Múltiple de Producto:** Filtro dinámico para cualquiera de los 24 productos del inventario principal.
